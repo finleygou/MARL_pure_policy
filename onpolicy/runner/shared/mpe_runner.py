@@ -250,48 +250,70 @@ class MPERunner(Runner):
             episode_rewards = []
             
             for step in range(self.episode_length):
-                calc_start = time.time()
+                if self.all_args.use_policy:
+                    calc_start = time.time()
+                
+                    actions_env = np.zeros((1, self.episode_length, 2))
+                    # Obser reward and next obs
+                    obs, rewards, dones, infos = envs.step(actions_env)
+                    if dones.all():
+                        break
+                    episode_rewards.append(rewards)
 
-                '''self.trainer.prep_rollout()
-                action, rnn_states = self.trainer.policy.act(np.concatenate(obs),
-                                                    np.concatenate(rnn_states),
-                                                    np.concatenate(masks),
-                                                    deterministic=True)
-                actions = np.array(np.split(_t2n(action), self.n_rollout_threads))
-                rnn_states = np.array(np.split(_t2n(rnn_states), self.n_rollout_threads))
+                    if self.all_args.save_gifs:
+                        image = envs.render('rgb_array')[0][0]
+                        all_frames.append(image)
+                        calc_end = time.time()
+                        elapsed = calc_end - calc_start
+                        if elapsed < self.all_args.ifi:
+                            time.sleep(self.all_args.ifi - elapsed)
+                    else:
+                        envs.render('human')
+                else:
+                    calc_start = time.time()
 
-                if envs.action_space[0].__class__.__name__ == 'MultiDiscrete':
-                    for i in range(envs.action_space[0].shape):
-                        uc_actions_env = np.eye(envs.action_space[0].high[i]+1)[actions[:, :, i]]
-                        if i == 0:
-                            actions_env = uc_actions_env
+                    self.trainer.prep_rollout()
+                    action, rnn_states = self.trainer.policy.act(np.concatenate(obs),
+                                                        np.concatenate(rnn_states),
+                                                        np.concatenate(masks),
+                                                        deterministic=True)
+                    actions = np.array(np.split(_t2n(action), self.n_rollout_threads))
+                    rnn_states = np.array(np.split(_t2n(rnn_states), self.n_rollout_threads))
+
+                    if envs.action_space[0].__class__.__name__ == 'MultiDiscrete':
+                        for i in range(envs.action_space[0].shape):
+                            uc_actions_env = np.eye(envs.action_space[0].high[i]+1)[actions[:, :, i]]
+                            if i == 0:
+                                actions_env = uc_actions_env
+                            else:
+                                actions_env = np.concatenate((actions_env, uc_actions_env), axis=2)
+                    elif envs.action_space[0].__class__.__name__ == 'Discrete':
+                        actions_env = np.squeeze(np.eye(envs.action_space[0].n)[actions], 2)
+                    elif self.envs.action_space[0].__class__.__name__ == 'Box':
+                        actions_env = actions
+                    else:
+                        raise NotImplementedError
+
+                    # Obser reward and next obs
+                    obs, rewards, dones, infos, is_terminate = envs.step(actions_env)
+                    episode_rewards.append(rewards)
+
+                    rnn_states[dones == True] = np.zeros(((dones == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
+                    masks = np.ones((self.n_rollout_threads, self.num_agents, 1), dtype=np.float32)
+                    masks[dones == True] = np.zeros(((dones == True).sum(), 1), dtype=np.float32)
+
+                    if self.all_args.save_gifs:
+                        if self.no_imageshow:
+                            envs.render('rgb_array')
                         else:
-                            actions_env = np.concatenate((actions_env, uc_actions_env), axis=2)
-                elif envs.action_space[0].__class__.__name__ == 'Discrete':
-                    actions_env = np.squeeze(np.eye(envs.action_space[0].n)[actions], 2)
-                elif self.envs.action_space[0].__class__.__name__ == 'Box':
-                    actions_env = actions
-                else:
-                    raise NotImplementedError'''
-
-                actions_env = np.zeros((1, 200, 2))
-                # Obser reward and next obs
-                obs, rewards, dones, infos = envs.step(actions_env)
-                episode_rewards.append(rewards)
-
-                '''rnn_states[dones == True] = np.zeros(((dones == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
-                masks = np.ones((self.n_rollout_threads, self.num_agents, 1), dtype=np.float32)
-                masks[dones == True] = np.zeros(((dones == True).sum(), 1), dtype=np.float32)'''
-
-                if self.all_args.save_gifs:
-                    image = envs.render('rgb_array')[0][0]
-                    all_frames.append(image)
-                    calc_end = time.time()
-                    elapsed = calc_end - calc_start
-                    if elapsed < self.all_args.ifi:
-                        time.sleep(self.all_args.ifi - elapsed)
-                else:
-                    envs.render('human')
+                            image = envs.render('rgb_array')[0][0]
+                            all_frames.append(image)
+                            calc_end = time.time()
+                            elapsed = calc_end - calc_start
+                            if elapsed < self.all_args.ifi:
+                                time.sleep(self.all_args.ifi - elapsed)
+                    else:
+                        envs.render('human')
 
             print("average episode rewards is: " + str(np.mean(np.sum(np.array(episode_rewards), axis=0))))
 
