@@ -6,7 +6,7 @@ import socket
 import setproctitle
 import numpy as np
 from pathlib import Path
-sys.path.insert(0,"D:\Scientific_Research\activity\24_MARL_TAD\code\TAD_pure_policy")
+sys.path.insert(0,"D:\Scientific_Research\activity\24_GNN_GuidedMarl\code\MARL_pure_policy")
 
 import torch
 
@@ -35,13 +35,9 @@ def make_render_env(all_args):
     else:
         return SubprocVecEnv([get_env_fn(i) for i in range(all_args.n_rollout_threads)])
 
-def parse_args(args, parser):
-    parser.add_argument('--scenario_name', type=str,
-                        default='simple_spread', help="Which scenario to run on")
-    parser.add_argument("--num_landmarks", type=int, default=3)
-    parser.add_argument('--num_agents', type=int,
-                        default=2, help="number of players")
 
+
+def parse_args(args, parser):
     all_args = parser.parse_known_args(args)[0]
 
     return all_args

@@ -38,7 +38,8 @@ class Action(object):
 class Entity(object):
     def __init__(self):
         # index among all entities (important to set for distance caching)
-        self.i = 0
+        self.id = 0
+        self.global_id = 0
         # name
         self.name = ''
         # properties:
@@ -69,20 +70,11 @@ class Entity(object):
     def mass(self):
         return self.initial_mass
 
-# properties of landmark entities
-class Landmark(Entity):
-    def __init__(self):
-        super(Landmark, self).__init__()
-        self.R = None
-        self.delta = None
-        self.Ls = None
-        self.movable = False
-
 # properties of agent entities
 class Agent(Entity):
     def __init__(self):
         super(Agent, self).__init__()
-
+        self.name = 'agent'
         # agents are dummy
         self.dummy = False
         # agents are movable by default
@@ -103,10 +95,9 @@ class Agent(Entity):
         self.action = Action()
         # script behavior to execute
         self.action_callback = None
-        # zoe 20200420
-        self.goal = None
-        # finley
+        self.goal = None  # goal position
         self.done = False
+        self.is_leader = False
         self.policy_action = np.array([0,0])
         self.network_action = np.array([0,0])
 
@@ -114,41 +105,43 @@ class Target(Agent):
     def __init__(self):
         super(Target, self).__init__()
         self.name = 'target'
-        self.id = None
+        self.attackers = []  # attackers that are aiming him
+        self.defenders = []  # defenders that help you avoid attacker
+        self.cost = [] # to store cost of each tad cost
+
+class Obstacle(Entity):
+    def __init__(self):
+        super(Obstacle, self).__init__()
+        self.name = 'obstacle'
+        self.R = None
+        self.delta = None
+        self.Ls = None
+        self.movable = False
+
+class DynamicObstacle(Agent):
+    def __init__(self):
+        super(DynamicObstacle, self).__init__()
+        self.name = 'dynamic_obstacle'
         self.attackers = []  # attackers that are aiming him
         self.defenders = []  # defenders that help you avoid attacker
         self.cost = [] # to store cost of each tad cost
         self.attacker = None # local TAD combination
         self.defender = None
 
-class Attacker(Agent):
-    def __init__(self):
-        super(Attacker, self).__init__()
-        self.name = 'attacker'
-        self.id = None
-        self.true_target = None
-        self.fake_target = None
-        self.defenders = []
-        self.flag_kill = False  # successful kill a target
-        self.flag_dead = False  # being killed by defender
-        self.last_belief = None
-        self.is_locked = False  # whether lock the true target
-
-class Defender(Agent):
-    def __init__(self):
-        super(Defender, self).__init__()
-        self.name = 'defender'
-        self.id = None
-        self.attacker = None # attacker to defend at
-        self.target = None # the target that your attacker is aiming at
-
-
 # multi-agent world
 class World(object):
     def __init__(self):
+        # if we want to construct graphs with the entities
+        self.graph_mode = False
+        self.edge_list = None
+        self.graph_feat_type = None
+        self.edge_weight = None
         # list of agents and entities (can change at execution-time!)
-        self.agents = []
-        self.landmarks = []
+        self.agents = []  # moving stuff: egos, dynamic_obstacles, targets
+        self.egos = []
+        self.targets = []
+        self.obstacles = []
+        self.dynamic_obstacles = []
         self.walls = []
         # communication channel dimensionality
         self.dim_c = 0
@@ -171,18 +164,14 @@ class World(object):
         self.world_length = 200
         self.world_step = 0
         self.num_agents = 0
-        self.num_landmarks = 0
+        self.num_obstacles = 0
+        self.max_edge_dist = 1.2
 
-        self.targets = []
-        self.defenders= []
-        self.attackers = []
-        self.cnt_dead = 0
-        self.attacker_belief = []
 
     # return all entities in the world
     @property
     def entities(self):
-        return self.agents + self.landmarks
+        return self.egos + self.targets + self.dynamic_obstacles + self.obstacles
 
     # return all agents controllable by external policies
     @property
@@ -203,7 +192,7 @@ class World(object):
             self.cached_dist_vect = np.zeros((len(self.entities),
                                               len(self.entities),
                                               self.dim_p))
-            # calculate minimum distance for a collision between all entities （size相加?）
+            # calculate minimum distance for a collision between all entities 
             self.min_dists = np.zeros((len(self.entities), len(self.entities)))  # N*N数组，N为智能体个数
             for ia, entity_a in enumerate(self.entities):
                 for ib in range(ia + 1, len(self.entities)):
@@ -243,90 +232,83 @@ class World(object):
             agent.color = color
 
     # landmark color
-    def assign_landmark_colors(self):
-        for landmark in self.landmarks:
-            landmark.color = np.array([0.25, 0.25, 0.25])
+    # def assign_landmark_colors(self):
+    #     for landmark in self.landmarks:
+    #         landmark.color = np.array([0.25, 0.25, 0.25])
 
     # update state of the world
     def step(self):
-
         self.world_step += 1
         # print("world step is {} ".format(self.world_step))
-
-        # if self.world_step > 30:
-        #     self.attackers[0].true_target = 0
-        #     self.attackers[0].fake_target = 0
-
-        # if self.world_step > 32:
-        #     self.attackers[0].true_target = 0
-        #     self.attackers[0].fake_target = 0
-        #     self.attackers[1].true_target = 2
-        #     self.attackers[1].fake_target = 2
-        #     self.attackers[2].true_target = 3
-        #     self.attackers[2].fake_target = 3
-        #     self.attackers[3].true_target = 1
-        #     self.attackers[3].fake_target = 1
-        #     self.attackers[4].true_target = 3
-        #     self.attackers[4].fake_target = 3
 
         # set actions for scripted agents
         for i, agent in enumerate(self.agents):
             if agent.name == 'target':
                 action = agent.action_callback(agent, self.attackers[agent.attacker], self.defenders[agent.defender])
-                agent.action.u = action
+                agent.action = action
                 # print("agent {} action is {}".format(agent.id, action))
-            elif agent.name == 'attacker':
-                action = agent.action_callback(self.targets[agent.fake_target], agent)
-                agent.action.u = action
-                # print("agent {} action is {}".format(agent.id, action))
-            elif agent.name == 'defender':
-                action = agent.action_callback(self.targets[self.attackers[agent.attacker].fake_target], self.attackers[agent.attacker], agent)
-                agent.action.u = action
+            elif agent.name == 'dynamic_obstacle':
+                action = agent.action_callback(agent, self.obstacles)
+                agent.action = action
                 # print("agent {} action is {}".format(agent.id, action))
             
         
         # gather forces applied to entities
-        u = [None] * len(self.agents)  # 空数组, 存储所有TAD的action
+        u = [None] * len(self.agents)  # store action of all moving entities
         # apply agent physical controls
         u = self.apply_action_force(u)
         # integrate physical state
         self.integrate_state(u)
 
         # # calculate and store distances between all entities
-        # if self.cache_dists:
-        #     self.calculate_distances()
+        if self.cache_dists:
+            self.calculate_distances()
 
     # gather agent action forces
     def apply_action_force(self, u):
         # set applied forces
         '''
-        for adversary agents, u = [ax, ay]; 
-        for escaping agents, u = [Vx, Vy];
+        for egos, u = [ax, ay]; 
+        for others, u = [Vx, Vy];
         '''
         for i, agent in enumerate(self.agents):
             u[i] = agent.action.u
         return u
 
     def integrate_state(self, u):  # u:[[1*2]...] 1*2n, [[ax, ay]...]
-        for i, agent in enumerate(self.agents):
-            # if agent.name == 'defender':
-            #     agent.state.p_vel = np.array([0, 0])
-
-            v = agent.state.p_vel + u[i] * self.dt
-            if np.linalg.norm(v) != 0:
-                v = v / np.linalg.norm(v) * agent.max_speed
-
-            # print("{} {} done is {}".format(agent.name, agent.id, agent.done))
-            if agent.done:
-                agent.state.p_vel = np.array([0, 0]) # 速度清零
-            else:
-                v_x, v_y = v[0], v[1]
+        for i, agent in enumerate(self.agents):            
+            if agent.name == "agent":  # u = [vx, vy], -1~1
+                a_x = u[i][0]*agent.max_accel
+                a_y = u[i][1]*agent.max_accel
+                v_x = agent.state.p_vel[0] + a_x*self.dt
+                v_y = agent.state.p_vel[1] + a_y*self.dt
+                # 检查速度是否超过上限
+                if abs(v_x) > agent.max_speed:
+                    v_x = agent.max_speed if agent.state.p_vel[0]>0 else -agent.max_speed
+                if abs(v_y) > agent.max_speed:
+                    v_y = agent.max_speed if agent.state.p_vel[1]>0 else -agent.max_speed
+                v_next = np.array([v_x, v_y])
                 theta = np.arctan2(v_y, v_x)
                 if theta < 0:
-                    theta += np.pi * 2
+                    theta += np.pi*2 
                 # update phi
                 agent.state.phi = theta
-                agent.state.p_vel = np.array([v_x, v_y])
-            agent.state.p_pos += agent.state.p_vel * self.dt
-
-            # print("{} {} pos is {}".format(agent.name, agent.id, np.linalg.norm(agent.state.p_pos)))
+                # update p_pos
+                agent.state.p_pos += agent.state.p_vel * self.dt  # 上一时刻的v
+                # update acc
+                agent.state.last_a = np.array([a_x, a_y])
+                # update p_vel
+                agent.state.p_vel = v_next
+            else:  # u = [Vx, Vy]
+                # target 的运动学在simple_xxx里面实现
+                if agent.done == True:
+                    agent.state.p_vel = np.array([0, 0])
+                else:
+                    v_x, v_y = u[i][0], u[i][1]
+                    theta = np.arctan2(v_y, v_x)
+                    if theta < 0:
+                        theta += np.pi*2 
+                    # update phi
+                    agent.state.phi = theta
+                    agent.state.p_vel = np.array([u[i][0], u[i][1]])
+                agent.state.p_pos += agent.state.p_vel * self.dt

@@ -6,6 +6,7 @@ import numpy as np
 from .multi_discrete import MultiDiscrete
 from onpolicy import global_var as glv
 from .scenarios.util import GetAcuteAngle
+from .guide_policy import guide_policy
 
 # update bounds to center around agent
 cam_range = 8
@@ -18,29 +19,32 @@ class MultiAgentEnv(gym.Env):
         'render.modes': ['human', 'rgb_array']
     }
 
-    def __init__(self, world, reset_callback=None, reward_callback=None,
+    def __init__(self, args, world, reset_callback=None, reward_callback=None,
                  observation_callback=None, info_callback=None,  # 以上callback是通过MPE_env跑通的
-                 done_callback=None, update_belief=None, 
+                 done_callback=None, update_graph=None, 
                  post_step_callback=None,shared_viewer=True, 
                  discrete_action=False):
         # discrete_action为false,即指定动作为Box类型
 
         # set CL
-        self.use_policy = 1
-        self.use_CL = 0
+        self.args = args
+        self.use_policy = args.use_policy
+        self.gp_type = args.gp_type
+        self.use_CL = args.use_curriculum
         self.CL_ratio = 0
-        self.Cp = 0.6  # 1.0 # 0.3
-        self.JS_thre = 0
+        self.Cp = args.guide_cp
+        self.js_ratio = args.js_ratio
+        self.JS_thre = 0  # step of guide steps
 
         # terminate
-        self.is_ternimate = False
+        self.is_terminate = False
 
         self.world = world
         self.world_length = self.world.world_length
         self.current_step = 0
-        self.agents = self.world.attackers
+        self.agents = self.world.policy_agents
         # set required vectorized gym env property
-        self.n = len(self.world.attackers)
+        self.n = len(self.agents)
         # scenario callbacks
         self.reset_callback = reset_callback
         self.reward_callback = reward_callback
@@ -48,7 +52,8 @@ class MultiAgentEnv(gym.Env):
         self.info_callback = info_callback
         self.done_callback = done_callback  
         self.post_step_callback = post_step_callback
-        self.update_belief = update_belief
+        self.update_graph = update_graph
+        self.policy_u = guide_policy
 
         # environment parameters
         # self.discrete_action_space = True
@@ -75,8 +80,8 @@ class MultiAgentEnv(gym.Env):
         share_obs_dim = 0
         for agent in self.agents:
             # action space
-            total_action = [[0, len(self.world.targets)-1], [0,1]]
-            u_action_space = MultiDiscrete(total_action)
+            u_action_space = spaces.Box(
+                    low=-agent.u_range, high=+agent.u_range, shape=(world.dim_p,), dtype=np.float32)
             self.action_space.append(u_action_space)
             
             # observation space
@@ -104,17 +109,19 @@ class MultiAgentEnv(gym.Env):
 
     # step  this is  env.step()
     def step(self, action_n):  # action_n: action for all policy agents, concatenated, from MPErunner
+        if self.update_graph is not None:
+            self.update_graph(self.world)
         self.current_step += 1
         obs_n = []
         reward_n = []  # concatenated reward for each agent
         done_n = []
         info_n = []
-        start_ratio = 0.80
-        self.JS_thre = int(self.world_length*start_ratio*set_JS_curriculum(self.CL_ratio/self.Cp))
+        self.JS_thre = int(self.world_length*self.js_ratio*set_JS_curriculum(self.CL_ratio/self.Cp))
 
-        # set action for poliy agents
-        for i, agent in enumerate(self.agents):  # attacker
-            self._set_action(action_n[i], agent, self.action_space[i])
+        # set action for each agent
+        policy_u = self.policy_u(self.world, self.gp_type)
+        for i, agent in enumerate(self.agents):  # adversaries only
+            self._set_action(action_n[i], policy_u[i], agent, self.action_space[i])
         
         # advance world state
         self.world.step()  # core.step(), after done, all stop. 不能传参
@@ -138,34 +145,24 @@ class MultiAgentEnv(gym.Env):
         if self.post_step_callback is not None:
             self.post_step_callback(self.world)
 
-        # supervise dones number and belief update
+        # supervise dones number and check terminate
         terminate = []
-        current_dead = 0
-        attacker_belief = []
-        for i, agent in enumerate(self.world.agents):
-            if agent.name=='target':
-                terminate.append(agent.done)
-            if agent.name=='attacker':
-                attacker_belief.append(agent.fake_target)
-                agent.last_belief = agent.fake_target
-            if agent.done:
-                current_dead += 1
-        
-        self.is_ternimate = True if all(terminate) else False
-        if self.is_ternimate:
-            # 所有target都被kill
+        if self.args.gp_type == 'formation':
+            if any(done_n):
+                terminate = [True] * self.n
+            else:
+                terminate = [False] * self.n
+        elif self.args.gp_type == 'encirclement':
+            pass
+        elif self.args.gp_type == 'navigation':
+            pass
+            
+        self.is_terminate = True if all(terminate) else False
+        if self.is_terminate:
             done_n = [True] * self.n
-        
-        # re-assign goals for TADs
-        if self.update_belief is not None and not all(done_n):  # 若全部targets or attackers都被kill，则不需要更新
-            # self.current_step%10==0
-            if  not self.world.attacker_belief == attacker_belief or current_dead > self.world.cnt_dead:
-                # if there is change in attacker belief or some agent is killed
-                self.update_belief(self.world)
-                # print("update belief")
 
-        self.world.cnt_dead = current_dead
-        self.world.attacker_belief = attacker_belief
+        # print("done_n", done_n)
+        # print("step:", self.current_step)
 
         return obs_n, reward_n, done_n, info_n
 
@@ -177,7 +174,7 @@ class MultiAgentEnv(gym.Env):
         self._reset_render()
         # record observations for each agent
         obs_n = []
-        self.agents = self.world.attackers
+        self.agents = self.world.policy_agents
 
         for agent in self.agents:
             obs_n.append(self._get_obs(agent))
@@ -204,7 +201,11 @@ class MultiAgentEnv(gym.Env):
                 return True
             else:
                 return False
-        return self.done_callback(agent, self.world)
+        else:
+            if self.current_step >= self.world_length:
+                return True
+            else:
+                return self.done_callback(agent, self.world)
 
     # get reward for a particular agent
     def _get_reward(self, agent):
@@ -213,20 +214,44 @@ class MultiAgentEnv(gym.Env):
         return self.reward_callback(agent, self.world)
 
     # set env action for a particular agent
-    def _set_action(self, action, agent, action_space, time=None):
-        pass
-        # # process action
-        # if isinstance(action_space, MultiDiscrete):
-        #     attacker_belief = int(action[0])
-        #     is_locked = action[1]
-        #     if not agent.is_locked:
-        #         if is_locked:
-        #             agent.fake_target = agent.true_target
-        #             agent.is_locked = True
-        #         else:
-        #             agent.fake_target = attacker_belief
-        #     else:
-        #         agent.fake_target = agent.true_target
+    def _set_action(self, action, policy_u, agent, action_space, time=None):
+        agent.action.u = np.zeros(self.world.dim_p)
+        # process action
+        action = [action]
+
+        if agent.movable:
+            # all between -1 and 1, [ax, ay]
+            network_output = action[0][0:self.world.dim_p]  # [ar, at] 1*2
+            policy_output = (policy_u.T)[0]
+
+            if agent.done:  # only navigation may use
+                if (self.use_CL and self.CL_ratio > self.Cp) or self.use_policy:
+                    # agent decellerate to zero
+                    target_v = np.linalg.norm(agent.state.p_vel)
+                    if target_v < 1e-3:
+                        acc = np.array([0,0])
+                    else:
+                        acc = -agent.state.p_vel/target_v*agent.max_accel*1.1
+                    network_output[0], network_output[1] = acc[0], acc[1]
+                    policy_output = network_output
+
+            if self.use_CL == True:
+                if self.CL_ratio < self.Cp:
+                    if self.current_step < self.JS_thre:
+                        agent.action.u = policy_output
+                    else:
+                        agent.action.u = network_output
+                else:
+                    act = network_output
+                    agent.action.u = limit_action_inf_norm(act, 1)
+
+            elif self.use_policy:
+                agent.action.u = policy_output
+            else: 
+                act = network_output
+                agent.action.u = limit_action_inf_norm(act, 1)
+
+            # print(agent.action.u)
 
     def _set_CL(self, CL_ratio):
         # 通过多进程set value，与env_wraapper直接关联，不能改。
@@ -261,7 +286,7 @@ class MultiAgentEnv(gym.Env):
                         word = alphabet[np.argmax(other.state.c)]
                     message += (other.name + ' to ' +
                                 agent.name + ': ' + word + '   ')
-            print(message)
+            # print(message)
         for i in range(len(self.viewers)):
             # create viewers (if necessary)
             if self.viewers[i] is None:
@@ -280,7 +305,11 @@ class MultiAgentEnv(gym.Env):
             self.line = {}
             self.comm_geoms = []
             for entity in self.world.entities:
-                geom = rendering.make_circle(0.1)  # entity.size
+                if entity.name=="obstacle":
+                    radius = entity.R
+                else:
+                    radius = entity.size
+                geom = rendering.make_circle(radius)  # drawing entity 
                 xform = rendering.Transform()
 
                 entity_comm_geoms = []
@@ -358,7 +387,7 @@ class MultiAgentEnv(gym.Env):
             else:
                 pos = self.agents[i].state.p_pos
             self.viewers[i].set_bounds(
-                -5, 30, -15, 15)
+                -10, 10, -5, 15)
             # x_left, x_right, y_bottom, y_top
             
             
@@ -374,11 +403,8 @@ class MultiAgentEnv(gym.Env):
             # update geometry positions
             for e, entity in enumerate(self.world.entities):
                 self.render_geoms_xform[e].set_translation(*entity.state.p_pos)
-                # 绘制agent速度
+                
                 self.line[e] = self.viewers[i].draw_line(entity.state.p_pos, entity.state.p_pos+entity.state.p_vel*1.0)
-
-                # if entity.name == 'attacker' and not entity.done:
-                #     self.line[e] = self.viewers[i].draw_line(entity.state.p_pos, self.world.targets[entity.fake_target].state.p_pos)
 
                 if 'agent' in entity.name:
                     self.render_geoms[e].set_color(*entity.color, alpha=0.5)
@@ -398,20 +424,29 @@ class MultiAgentEnv(gym.Env):
                                 color, color, color)
             
             m = len(self.line)
-            for k, attacker in enumerate(self.world.attackers):
-                if not attacker.done:
-                    self.line[m+k] = self.viewers[i].draw_line(attacker.state.p_pos, self.world.targets[attacker.fake_target].state.p_pos)
-                    self.line[m+k].set_color(*attacker.color, alpha=0.5)
+            for k, agent in enumerate(self.world.agents):
+                if not agent.done:
+                    self.line[m+k] = self.viewers[i].draw_line(agent.state.p_pos, agent.state.p_pos+agent.state.p_vel*1.0)
+                    self.line[m+k].set_color(*agent.color, alpha=0.5)
 
-            m = len(self.line)
-            for k, defender in enumerate(self.world.defenders):
-                if not defender.done:
-                    self.line[m+k] = self.viewers[i].draw_line(defender.state.p_pos, self.world.attackers[defender.attacker].state.p_pos)
-                    self.line[m+k].set_color(*defender.color, alpha=0.5)
-
+            # render the graph connections
+            if hasattr(self.world, "graph_mode"):
+                if self.world.graph_mode:
+                    edge_list = self.world.edge_list.T
+                    assert edge_list is not None, "Edge list should not be None"
+                    for entity1 in self.world.entities:
+                        for entity2 in self.world.entities:
+                            e1_id, e2_id = entity1.global_id, entity2.global_id
+                            if e1_id == e2_id:
+                                continue
+                            # if edge exists draw a line
+                            if [e1_id, e2_id] in edge_list.tolist():
+                                src = entity1.state.p_pos
+                                dest = entity2.state.p_pos
+                                self.viewers[i].draw_line(start=src, end=dest)
+                                
             # render to display or array
-            results.append(self.viewers[i].render(
-                return_rgb_array=mode == 'rgb_array'))
+            results.append(self.viewers[i].render(return_rgb_array=mode == 'rgb_array'))
 
         return results
 

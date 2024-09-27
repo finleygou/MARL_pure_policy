@@ -167,7 +167,7 @@ def get_config():
                         action='store_false', default=True, help="by default, make sure random seed effective. if set, bypass such function.")
     parser.add_argument("--n_training_threads", type=int,
                         default=1, help="Number of torch threads for training")
-    parser.add_argument("--n_rollout_threads", type=int, default=32,
+    parser.add_argument("--n_rollout_threads", type=int, default=1,
                         help="Number of parallel envs for training rollouts")
     parser.add_argument("--n_eval_rollout_threads", type=int, default=1,
                         help="Number of parallel envs for evaluating rollouts")
@@ -179,7 +179,7 @@ def get_config():
     parser.add_argument("--use_wandb", action='store_false', default=True, help="[for wandb usage], by default True, will log date to wandb server. or else will use tensorboard to log data.")
 
     # env parameters
-    parser.add_argument("--env_name", type=str, default='StarCraft2', help="specify the name of environment")
+    parser.add_argument("--env_name", type=str, default='MPE', help="specify the name of environment")
     parser.add_argument("--use_obs_instead_of_state", action='store_true',
                         default=False, help="Whether to use global state or concatenated obs")
 
@@ -264,6 +264,17 @@ def get_config():
     # run parameters
     parser.add_argument("--use_linear_lr_decay", action='store_true',
                         default=False, help='use a linear schedule on the learning rate')
+    
+    # curriculum learning parameters
+    parser.add_argument("--use_policy", type=bool, default=True, help="use the fixed policy to conduct tasks")
+    parser.add_argument("--use_curriculum", default=False, help='use curriculum learning during training')
+    parser.add_argument("--guide_cp", type=float, default=0.6, help='the proportion of guide policy over the whole training')
+    parser.add_argument("--cp", type=float, default=0.4, help='cp used in simple scenarios')
+    parser.add_argument("--js_ratio", type=float, default=0.8, help='the threshold of the curriculum')
+    parser.add_argument("--gp_type", type=str,
+                        default='formation', choices=["formation", "encirclement", "navigation"], help="the choose of guide policy")
+
+    
     # save parameters
     parser.add_argument("--save_interval", type=int, default=1, help="time duration between contiunous twice models saving.")
 
@@ -281,13 +292,19 @@ def get_config():
     parser.add_argument("--render_episodes", type=int, default=5, help="the number of episodes to render a given env")
     parser.add_argument("--ifi", type=float, default=0.1, help="the play interval of each rendered image in saved video.")
     parser.add_argument("--save_data", default=False, help='use to save data in rendering')
+    parser.add_argument("--graph_mode", default=True, help='whether to use graph mode in rendering, that will draw edges')
 
     # pretrained parameters
     parser.add_argument("--model_dir", type=str, default=None, help="by default None. set the path to pretrained model.")
 
-    # entity number parameters
-    parser.add_argument("--num_target", type=int, default=2, help="the number of targets")
-    parser.add_argument("--num_attacker", type=int, default=1, help="the number of attackers")
-    parser.add_argument("--num_defender", type=int, default=1, help="the number of defenders")
+    # scenario settings
+    parser.add_argument("--max_edge_dist", type=float, default=1.2, help="Maximum distance above which edges cannot be connected between the entities")
+    parser.add_argument("--num_target", type=int, default=0, help="the number of targets")
+    parser.add_argument("--num_obstacle", type=int, default=4, help="the number of obstacles")
+    parser.add_argument("--num_dynamic_obs", type=int, default=4, help="the number of dynamic obstacles")
+    parser.add_argument("--num_agents", type=int, default=4, help="the number of agents")
+    parser.add_argument('--scenario_name', type=str,
+                        default='simple_formation_4agts', help="Which scenario to run on")
+    parser.add_argument("--num_landmarks", type=int, default=3)
 
     return parser

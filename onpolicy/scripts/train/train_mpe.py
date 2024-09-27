@@ -6,7 +6,7 @@ import socket
 import setproctitle
 import numpy as np
 from pathlib import Path
-sys.path.insert(0, "D:\Scientific_Research\activity\24_IROS\code\SwarmRoundUp_V2_pure_policy")
+sys.path.insert(0, "D:\Scientific_Research\activity\24_GNN_GuidedMarl\code\MARL_pure_policy")
 import torch
 from onpolicy.config import get_config
 from onpolicy.envs.mpe.MPE_env import MPEEnv
@@ -55,11 +55,6 @@ def make_eval_env(all_args):
 
 
 def parse_args(args, parser):
-    parser.add_argument('--scenario_name', type=str,
-                        default='simple_spread', help="Which scenario to run on")
-    parser.add_argument("--num_landmarks", type=int, default=3)
-    parser.add_argument('--num_agents', type=int,
-                        default=2, help="number of players")
 
     all_args = parser.parse_known_args(args)[0]
 
