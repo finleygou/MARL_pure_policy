@@ -117,6 +117,12 @@ class Viewer(object):
         self.add_onetime(geom)
         return geom
 
+    def draw_moving_circle(self, radius=10, res=30, pos=(0, 0), filled=True, **attrs):
+        geom = make_moving_circle(radius=radius, res=res, filled=filled, pos=pos)
+        _add_attrs(geom, attrs)
+        self.add_onetime(geom)
+        return geom
+
     def draw_polygon(self, v, filled=True, **attrs):
         geom = make_polygon(v=v, filled=filled)
         _add_attrs(geom, attrs)
@@ -244,6 +250,16 @@ def make_circle(radius=10, res=30, filled=True):
     for i in range(res):
         ang = 2*math.pi*i / res
         points.append((math.cos(ang)*radius, math.sin(ang)*radius))
+    if filled:
+        return FilledPolygon(points)
+    else:
+        return PolyLine(points, True)
+    
+def make_moving_circle(radius=10, res=30, filled=True, pos=(0, 0)):
+    points = []
+    for i in range(res):
+        ang = 2*math.pi*i / res
+        points.append((math.cos(ang)*radius+pos[0], math.sin(ang)*radius+pos[1]))
     if filled:
         return FilledPolygon(points)
     else:

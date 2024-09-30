@@ -44,6 +44,7 @@ class Entity(object):
         self.name = ''
         # properties:
         self.size = 1.0
+        self.R = 1.0  # radius, same to size
         # entity can move / be pushed
         self.movable = False
         # entity collides with others
@@ -105,15 +106,12 @@ class Target(Agent):
     def __init__(self):
         super(Target, self).__init__()
         self.name = 'target'
-        self.attackers = []  # attackers that are aiming him
-        self.defenders = []  # defenders that help you avoid attacker
-        self.cost = [] # to store cost of each tad cost
+
 
 class Obstacle(Entity):
     def __init__(self):
         super(Obstacle, self).__init__()
         self.name = 'obstacle'
-        self.R = None
         self.delta = None
         self.Ls = None
         self.movable = False
@@ -122,11 +120,7 @@ class DynamicObstacle(Agent):
     def __init__(self):
         super(DynamicObstacle, self).__init__()
         self.name = 'dynamic_obstacle'
-        self.attackers = []  # attackers that are aiming him
-        self.defenders = []  # defenders that help you avoid attacker
-        self.cost = [] # to store cost of each tad cost
-        self.attacker = None # local TAD combination
-        self.defender = None
+        self.delta = None
 
 # multi-agent world
 class World(object):
@@ -244,7 +238,7 @@ class World(object):
         # set actions for scripted agents
         for i, agent in enumerate(self.agents):
             if agent.name == 'target':
-                action = agent.action_callback(agent, self.attackers[agent.attacker], self.defenders[agent.defender])
+                action = agent.action_callback(agent, self.egos, self.obstacles, self.dynamic_obstacles)
                 agent.action = action
                 # print("agent {} action is {}".format(agent.id, action))
             elif agent.name == 'dynamic_obstacle':

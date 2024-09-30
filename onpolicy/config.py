@@ -271,8 +271,6 @@ def get_config():
     parser.add_argument("--guide_cp", type=float, default=0.6, help='the proportion of guide policy over the whole training')
     parser.add_argument("--cp", type=float, default=0.4, help='cp used in simple scenarios')
     parser.add_argument("--js_ratio", type=float, default=0.8, help='the threshold of the curriculum')
-    parser.add_argument("--gp_type", type=str,
-                        default='formation', choices=["formation", "encirclement", "navigation"], help="the choose of guide policy")
 
     
     # save parameters
@@ -289,7 +287,7 @@ def get_config():
     # render parameters
     parser.add_argument("--save_gifs", default=False, help="by default, do not save render video. If set, save video.")
     parser.add_argument("--use_render", default=True, action='store_true', help="by default, do not render the env during training. If set, start render. Note: something, the environment has internal render process which is not controlled by this hyperparam.")
-    parser.add_argument("--render_episodes", type=int, default=5, help="the number of episodes to render a given env")
+    parser.add_argument("--render_episodes", type=int, default=50, help="the number of episodes to render a given env")
     parser.add_argument("--ifi", type=float, default=0.1, help="the play interval of each rendered image in saved video.")
     parser.add_argument("--save_data", default=False, help='use to save data in rendering')
     parser.add_argument("--graph_mode", default=True, help='whether to use graph mode in rendering, that will draw edges')
@@ -298,13 +296,13 @@ def get_config():
     parser.add_argument("--model_dir", type=str, default=None, help="by default None. set the path to pretrained model.")
 
     # scenario settings
-    parser.add_argument("--max_edge_dist", type=float, default=1.2, help="Maximum distance above which edges cannot be connected between the entities")
+    parser.add_argument("--max_edge_dist", type=float, default=1.5, help="Maximum distance above which edges cannot be connected between the entities")
     parser.add_argument("--num_target", type=int, default=0, help="the number of targets")
     parser.add_argument("--num_obstacle", type=int, default=4, help="the number of obstacles")
     parser.add_argument("--num_dynamic_obs", type=int, default=4, help="the number of dynamic obstacles")
-    parser.add_argument("--num_agents", type=int, default=4, help="the number of agents")
+    parser.add_argument("--num_agents", type=int, default=6, help="the number of agents")
     parser.add_argument('--scenario_name', type=str,
-                        default='simple_formation_4agts', help="Which scenario to run on")
-    parser.add_argument("--num_landmarks", type=int, default=3)
-
+                        default='simple_navigation_6agts', help="Which scenario to run on")
+    parser.add_argument("--gp_type", type=str,
+                        default='navigation', choices=["formation", "encirclement", "navigation"], help="the choose of guide policy")
     return parser

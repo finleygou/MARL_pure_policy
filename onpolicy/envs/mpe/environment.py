@@ -153,16 +153,19 @@ class MultiAgentEnv(gym.Env):
             else:
                 terminate = [False] * self.n
         elif self.args.gp_type == 'encirclement':
-            pass
+            terminate = done_n
         elif self.args.gp_type == 'navigation':
-            pass
+            if all(done_n):
+                terminate = [True] * self.n
+            else:
+                terminate = [False] * self.n
             
         self.is_terminate = True if all(terminate) else False
         if self.is_terminate:
             done_n = [True] * self.n
 
         # print("done_n", done_n)
-        # print("step:", self.current_step)
+        print("step:", self.current_step)
 
         return obs_n, reward_n, done_n, info_n
 
@@ -314,7 +317,7 @@ class MultiAgentEnv(gym.Env):
 
                 entity_comm_geoms = []
                 if 'agent' in entity.name:
-                    geom.set_color(*entity.color, alpha=0.5)
+                    geom.set_color(*entity.color)
 
                     if not entity.silent:
                         dim_c = self.world.dim_c  # 0
@@ -349,7 +352,7 @@ class MultiAgentEnv(gym.Env):
                 self.render_geoms.append(geom)
                 self.render_geoms_xform.append(xform)
                 self.comm_geoms.append(entity_comm_geoms)
-            
+
             for wall in self.world.walls:
                 corners = ((wall.axis_pos - 0.5 * wall.width, wall.endpoints[0]),
                            (wall.axis_pos - 0.5 *
@@ -407,9 +410,8 @@ class MultiAgentEnv(gym.Env):
                 self.line[e] = self.viewers[i].draw_line(entity.state.p_pos, entity.state.p_pos+entity.state.p_vel*1.0)
 
                 if 'agent' in entity.name:
-                    self.render_geoms[e].set_color(*entity.color, alpha=0.5)
-                    self.line[e].set_color(*entity.color, alpha=0.5)
-
+                    self.render_geoms[e].set_color(*entity.color)
+                    self.line[e].set_color(*entity.color)
                     if not entity.silent:
                         for ci in range(self.world.dim_c):
                             color = 1 - entity.state.c[ci]
@@ -423,6 +425,16 @@ class MultiAgentEnv(gym.Env):
                             self.comm_geoms[e][ci].set_color(
                                 color, color, color)
             
+            # plot target points
+            if self.gp_type == 'navigation':
+                m = len(self.render_geoms)
+                for k, ego in enumerate(self.world.egos):
+                    geom = rendering.make_moving_circle(radius=ego.R, pos=ego.goal)  # entity.size
+                    geom.set_color(*ego.goal_color)
+                    self.render_geoms.append(geom)
+                    self.render_geoms[m+k] = self.viewers[i].draw_moving_circle(radius=ego.R, color=ego.goal_color, pos=ego.goal)
+
+
             m = len(self.line)
             for k, agent in enumerate(self.world.agents):
                 if not agent.done:

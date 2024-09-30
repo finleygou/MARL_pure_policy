@@ -17,14 +17,14 @@ class Scenario(BaseScenario):
     def __init__(self) -> None:
         super().__init__()
 
-    # 设置agent,landmark的数量，运动属性。
     def make_world(self,args):
+        
         self.cp = args.cp
-        self.use_CL = args.use_curriculum  # 是否使用课程式训练(render时改为false)
+        self.use_CL = args.use_curriculum  
         self.num_egos = args.num_agents  # formation agents
-        self.num_target = args.num_target
         self.num_obs = args.num_obstacle
         self.num_dynamic_obs = args.num_dynamic_obs
+
         if not hasattr(args, "max_edge_dist"):
             self.max_edge_dist = 1
             print("_" * 60)
@@ -54,7 +54,7 @@ class Scenario(BaseScenario):
             ego.id = i
             ego.size = 0.12
             ego.R = ego.size
-            ego.color = np.array([0.95, 0.45, 0.45])
+            # ego.color = np.array([0.95, 0.45, 0.45])
             ego.max_speed = 0.5
             ego.max_accel = 0.5
             ego.global_id = global_id
@@ -82,19 +82,22 @@ class Scenario(BaseScenario):
         return world
 
     def reset_world(self, world):
-        init_pos_ego = np.array([[0., 0.], [-1.0, 0.], [0., 1.0], [1.0, 0.]])
+        # self.assign_list = rand_assign_targets(self.num_egos, self.num_egos)
+        goal_pos = np.array([[-0.8, 3.8], [0.1, 4.2], [0.3, 3.3], [1.3, 3.6]])
+        init_pos_ego = np.array([[-1.0, 0.1], [-0.35, -0.2], [0.3, 0.08], [0.9, 0.15]])
         init_pos_ego = init_pos_ego + np.random.randn(*init_pos_ego.shape)*0.05
-        H = np.array([[0., 0.], [-1.0, 0.], [0., 1.0], [1.0, 0.]])
+        color_list = [np.array([0.95, 0.45, 0.45]), np.array([0.95, 0.95, 0.00]), 
+                      np.array([0.45, 0.95, 0.45]), np.array([0.95, 0.75, 0.80]),
+                      np.array([0.45, 0.0, 0.45]), np.array([0.6, 0.4, 0.2])]
         for i, ego in enumerate(world.egos):
-            if i==0:
-                ego.is_leader = True
-                ego.goal = np.array([0., 8.])
             ego.done = False
             ego.state.p_pos = init_pos_ego[i]
             ego.state.p_vel = np.array([0.0, 0.0])
             ego.state.V = np.linalg.norm(ego.state.p_vel)
             ego.state.phi = np.pi
-            ego.formation_vector = H[i]
+            ego.goal = goal_pos[i]
+            ego.color = color_list[i]
+            ego.goal_color = color_list[i]
 
         init_pos_d_obs = np.array([[-3., 5.], [3., 3.5], [-3., 8.], [3., 6.5]])
         init_direction = np.array([[1., -0.5], [-1., -0.5], [1., -0.5], [-1., -0.5]])
@@ -107,8 +110,8 @@ class Scenario(BaseScenario):
             d_obs.state.p_vel = d_obs.direction*d_obs.max_speed/np.linalg.norm(d_obs.direction)
             d_obs.action_callback = dobs_policy
 
-        init_pos_obs = np.array([[-1.5, 1.5], [-0.8, 3.8], [0.4, 2.6], [1.8, 0.9]])
-        sizes_obs = np.array([0.19, 0.25, 0.24, 0.22])
+        init_pos_obs = np.array([[-1.4, 0.8], [-0.2, 1.0], [0.1, 2.4], [1.5, 0.7]])
+        sizes_obs = np.array([0.16, 0.18, 0.2, 0.24])
         for i, obs in enumerate(world.obstacles):
             obs.done = False
             obs.state.p_pos = init_pos_obs[i]
@@ -135,13 +138,6 @@ class Scenario(BaseScenario):
         dist_min = agent1.size + agent2.size
         return True if dist < dist_min else False
 
-    def target_defender(self, world):
-        return [agent for agent in world.agents if not agent.name=='ego']
-
-    # return all adversarial agents
-    def adversaries(self, world):
-        return [agent for agent in world.agents if agent.adversary]
-
     def set_CL(self, CL_ratio):
         d_cap = 1.5
         if CL_ratio < self.cp:
@@ -164,20 +160,12 @@ class Scenario(BaseScenario):
         obs = np.array([1, 1])
         return obs
 
-    def done(self, agent, world):  # 
-        if agent.is_leader:
-            dist = np.linalg.norm(agent.state.p_pos - agent.goal)
-            if dist < 0.1:
-                agent.done = True
-                return True
-        else:
-            for ego in world.egos:
-                if ego.is_leader:
-                    if ego.done:
-                        agent.done = True
-                        return True
-        agent.done = False
-
+    def done(self, agent, world):
+        dist = np.linalg.norm(agent.state.p_pos - agent.goal)
+        if dist < 0.1:
+            agent.done = True
+            return True
+        else:  agent.done = False
         return False
     
     def update_graph(self, world: World):
@@ -232,8 +220,6 @@ def dobs_policy(agent, obstacles):
         else:
             d_vec_ij = np.array([0, 0])
         esp_direction = esp_direction + d_vec_ij
-
-        # with dynamic obstacles
 
         esp_direction = esp_direction/np.linalg.norm(esp_direction)
         a_x, a_y = esp_direction[0]*agent.max_accel, esp_direction[1]*agent.max_accel
