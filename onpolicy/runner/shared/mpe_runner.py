@@ -210,7 +210,6 @@ class MPERunner(Runner):
             elif self.eval_envs.action_space[0].__class__.__name__ == 'Discrete':
                 eval_actions_env = np.squeeze(np.eye(self.eval_envs.action_space[0].n)[eval_actions], 2)
             elif self.eval_envs.action_space[0].__class__.__name__ == 'Box':
-                ####################### modify ##############################
                 eval_actions_env = eval_actions 
             else:
                 raise NotImplementedError

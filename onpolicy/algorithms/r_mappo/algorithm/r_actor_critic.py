@@ -2,9 +2,9 @@ import torch
 import torch.nn as nn
 from onpolicy.algorithms.utils.util import init, check
 from onpolicy.algorithms.utils.cnn import CNNBase
-# from onpolicy.algorithms.utils.mlp import MLPBase
-from onpolicy.algorithms.utils.roundup_actor_mlp import A_MLPBase
-from onpolicy.algorithms.utils.roundup_critic_mlp import C_MLPBase
+from onpolicy.algorithms.utils.mlp import MLPBase
+# from onpolicy.algorithms.utils.roundup_actor_mlp import A_MLPBase
+# from onpolicy.algorithms.utils.roundup_critic_mlp import C_MLPBase
 from onpolicy.algorithms.utils.phi import PhiNetBase
 from onpolicy.algorithms.utils.rnn import RNNLayer
 from onpolicy.algorithms.utils.act import ACTLayer
@@ -37,13 +37,13 @@ class R_Actor(nn.Module):
 
         # self.phi = PhiNetBase(args, 5)  # 5 is length of O_ij
 
-        base = CNNBase if len(obs_shape) == 3 else A_MLPBase  # MLP
-        self.base = base(args, 24)  # 16 is obs_feature
+        base = CNNBase if len(obs_shape) == 3 else MLPBase  # MLP
+        self.base = base(args, obs_shape)
 
         if self._use_naive_recurrent_policy or self._use_recurrent_policy:
-            self.rnn = RNNLayer(64, 32, self._recurrent_N, self._use_orthogonal)
+            self.rnn = RNNLayer(self.hidden_size, self.hidden_size, self._recurrent_N, self._use_orthogonal)
 
-        self.act = ACTLayer(action_space, 32, self._use_orthogonal, self._gain)
+        self.act = ACTLayer(action_space, self.hidden_size, self._use_orthogonal, self._gain)
 
         self.to(device)
 
@@ -141,19 +141,19 @@ class R_Critic(nn.Module):
         init_method = [nn.init.xavier_uniform_, nn.init.orthogonal_][self._use_orthogonal]
 
         cent_obs_shape = get_shape_from_obs_space(cent_obs_space)
-        base = CNNBase if len(cent_obs_shape) == 3 else C_MLPBase
+        base = CNNBase if len(cent_obs_shape) == 3 else MLPBase
         self.base = base(args, cent_obs_shape)
 
         if self._use_naive_recurrent_policy or self._use_recurrent_policy:
-            self.rnn = RNNLayer(32, 32, self._recurrent_N, self._use_orthogonal)
+            self.rnn = RNNLayer(self.hidden_size, self.hidden_size, self._recurrent_N, self._use_orthogonal)
 
         def init_(m):
             return init(m, init_method, lambda x: nn.init.constant_(x, 0))
 
         if self._use_popart:
-            self.v_out = init_(PopArt(32, 1, device=device))
+            self.v_out = init_(PopArt(self.hidden_size, 1, device=device))
         else:
-            self.v_out = init_(nn.Linear(32, 1))
+            self.v_out = init_(nn.Linear(self.hidden_size, 1))
 
         self.to(device)
 

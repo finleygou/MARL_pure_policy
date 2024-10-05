@@ -84,7 +84,6 @@ class Scenario(BaseScenario):
 
     def reset_world(self, world):
         self.assign_list = rand_assign_targets(self.num_egos, self.num_egos)
-
         goal_pos = np.array([[-0.9, 3.6], [0.1, 4.0], [1.1, 4.4]])
         init_pos_ego = np.array([[-0.8, 0.], [0.0, 0.0], [0.8, 0.0]])
         init_pos_ego = init_pos_ego + np.random.randn(*init_pos_ego.shape)*0.05

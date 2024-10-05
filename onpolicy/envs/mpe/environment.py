@@ -426,7 +426,7 @@ class MultiAgentEnv(gym.Env):
                                 color, color, color)
             
             # plot target points
-            if self.gp_type == 'navigation':
+            if 'navigation' in self.gp_type:
                 m = len(self.render_geoms)
                 for k, ego in enumerate(self.world.egos):
                     geom = rendering.make_moving_circle(radius=ego.R, pos=ego.goal)  # entity.size

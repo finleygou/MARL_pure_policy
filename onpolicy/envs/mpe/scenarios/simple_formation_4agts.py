@@ -89,6 +89,8 @@ class Scenario(BaseScenario):
             if i==0:
                 ego.is_leader = True
                 ego.goal = np.array([0., 8.])
+            else:
+                ego.goal = np.array([0., 8.]) + H[i]
             ego.done = False
             ego.state.p_pos = init_pos_ego[i]
             ego.state.p_vel = np.array([0.0, 0.0])

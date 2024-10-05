@@ -147,6 +147,8 @@ class ACTLayer(nn.Module):
                 action_logit = action_out(x)
                 action_log_probs.append(action_logit.log_probs(act))
                 if active_masks is not None:
+
+                    
                     if len(action_logit.entropy().shape) == len(active_masks.shape):
                         dist_entropy.append((action_logit.entropy() * active_masks).sum()/active_masks.sum()) 
                     else:

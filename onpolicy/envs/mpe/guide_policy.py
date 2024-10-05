@@ -10,6 +10,12 @@ def guide_policy(world, gp_type):
         return guide_policy_encirclement(world)
     elif gp_type == "navigation":
         return guide_policy_navigation(world)
+    elif gp_type == "formation_rvo":
+        return guide_policy_formation_rvo(world)
+    elif gp_type == "encirclement_rvo":
+        return guide_policy_encirclement_rvo(world)
+    elif gp_type == "navigation_rvo":
+        return guide_policy_navigation_rvo(world)
     else:
         raise ValueError(f"Unknown policy version: {gp_type}")
 
@@ -254,6 +260,14 @@ def guide_policy_navigation(world):
 
     return U
 
+def guide_policy_formation_rvo(world):
+    pass
+
+def guide_policy_encirclement_rvo(world):
+    pass
+
+def guide_policy_navigation_rvo(world):
+    pass
 
 def limit_action_inf_norm(action, max_limit):
     action = np.float32(action)

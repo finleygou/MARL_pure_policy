@@ -197,7 +197,7 @@ def get_config():
     parser.add_argument("--use_stacked_frames", action='store_true',
                         default=False, help="Whether to use stacked_frames")
     parser.add_argument("--hidden_size", type=int, default=64,
-                        help="Dimension of hidden layers for actor/critic networks") 
+                        help="Dimension of hidden layers for actor/critic networks, and for rnn") 
     parser.add_argument("--layer_N", type=int, default=1,
                         help="Number of layers for actor/critic networks")
     parser.add_argument("--use_ReLU", action='store_false',
@@ -300,9 +300,11 @@ def get_config():
     parser.add_argument("--num_target", type=int, default=0, help="the number of targets")
     parser.add_argument("--num_obstacle", type=int, default=4, help="the number of obstacles")
     parser.add_argument("--num_dynamic_obs", type=int, default=4, help="the number of dynamic obstacles")
-    parser.add_argument("--num_agents", type=int, default=6, help="the number of agents")
+    parser.add_argument("--num_agents", type=int, default=4, help="the number of agents")
     parser.add_argument('--scenario_name', type=str,
-                        default='simple_navigation_6agts', help="Which scenario to run on")
+                        default='simple_formation_4agts', help="Which scenario to run on")
     parser.add_argument("--gp_type", type=str,
-                        default='navigation', choices=["formation", "encirclement", "navigation"], help="the choose of guide policy")
+                        default='formation', choices=["formation", "encirclement", "navigation"
+                                                       "formation_rvo", "encirclement_rvo", "navigation_rvo"], 
+                                                       help="the choose of guide policy")
     return parser
