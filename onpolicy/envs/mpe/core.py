@@ -101,6 +101,8 @@ class Agent(Entity):
         self.is_leader = False
         self.policy_action = np.array([0,0])
         self.network_action = np.array([0,0])
+        # time passed for each agent
+        self.t = 0.0
 
 class Target(Agent):
     def __init__(self):
@@ -237,6 +239,7 @@ class World(object):
 
         # set actions for scripted agents
         for i, agent in enumerate(self.agents):
+            agent.t += self.dt
             if agent.name == 'target':
                 action = agent.action_callback(agent, self.egos, self.obstacles, self.dynamic_obstacles)
                 agent.action = action

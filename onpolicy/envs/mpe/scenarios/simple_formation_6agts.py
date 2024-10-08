@@ -198,7 +198,6 @@ class Scenario(BaseScenario):
 def dobs_policy(agent, obstacles):
     action = agent.action
     dt = 0.1
-    agent.t += dt
     if agent.t > 20:
         agent.done = True
     if agent.done:

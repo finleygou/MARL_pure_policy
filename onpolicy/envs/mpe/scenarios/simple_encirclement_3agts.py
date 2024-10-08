@@ -17,7 +17,7 @@ class Scenario(BaseScenario):
     
     def __init__(self) -> None:
         super().__init__()
-        self.d_cap = 1.0
+        self.d_cap = 0.8
         self.band_init = 0.25
         self.band_target = 0.1
         self.angle_band_init = 0.3
@@ -127,7 +127,7 @@ class Scenario(BaseScenario):
         for i, d_obs in enumerate(world.dynamic_obstacles):
             d_obs.done = False
             d_obs.t = 0
-            d_obs.delta = 0.08
+            d_obs.delta = 0.1
             d_obs.state.p_pos = init_pos_d_obs[i]
             d_obs.direction = init_direction[i]
             d_obs.state.p_vel = d_obs.direction*d_obs.max_speed/np.linalg.norm(d_obs.direction)
@@ -140,7 +140,7 @@ class Scenario(BaseScenario):
             obs.state.p_pos = init_pos_obs[i]
             obs.state.p_vel = np.array([0.0, 0.0])
             obs.R = sizes_obs[i]
-            obs.delta = 0.08
+            obs.delta = 0.1
             obs.Ls = obs.R + obs.delta  
 
         world.calculate_distances()

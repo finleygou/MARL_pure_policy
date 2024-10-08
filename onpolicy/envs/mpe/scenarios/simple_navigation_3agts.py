@@ -100,7 +100,7 @@ class Scenario(BaseScenario):
             ego.color = color_list[i]
             ego.goal_color = color_list[i]   
 
-        init_pos_d_obs = np.array([[-3., 5.], [3., 3.5], [-3., 8.], [3., 6.5]])
+        init_pos_d_obs = np.array([[-3., 4.2], [3., 3.7], [-3., 7.0], [3., 6.5]])
         init_direction = np.array([[1., -0.5], [-1., -0.5], [1., -0.5], [-1., -0.5]])
         for i, d_obs in enumerate(world.dynamic_obstacles):
             d_obs.done = False
@@ -111,8 +111,8 @@ class Scenario(BaseScenario):
             d_obs.state.p_vel = d_obs.direction*d_obs.max_speed/np.linalg.norm(d_obs.direction)
             d_obs.action_callback = dobs_policy
 
-        init_pos_obs = np.array([[-1.4, 0.8], [-0.2, 1.0], [0.1, 2.4], [1.5, 0.7]])
-        sizes_obs = np.array([0.16, 0.18, 0.2, 0.24])
+        init_pos_obs = np.array([[-1.4, 0.7], [-0.2, 1.0], [0.1, 2.4], [1.4, 0.6]])
+        sizes_obs = np.array([0.16, 0.18, 0.2, 0.17])
         for i, obs in enumerate(world.obstacles):
             obs.done = False
             obs.state.p_pos = init_pos_obs[i]
@@ -189,7 +189,6 @@ class Scenario(BaseScenario):
 def dobs_policy(agent, obstacles):
     action = agent.action
     dt = 0.1
-    agent.t += dt
     if agent.t > 20:
         agent.done = True
     if agent.done:
@@ -215,7 +214,7 @@ def dobs_policy(agent, obstacles):
                 nearest_obs = obs
         if d_min < 1.0:
             d_vec_ij = agent.state.p_pos - nearest_obs.state.p_pos
-            d_vec_ij = 0.5 * d_vec_ij / np.linalg.norm(d_vec_ij) / (np.linalg.norm(d_vec_ij) - nearest_obs.R - agent.R)
+            d_vec_ij = 1.0 * d_vec_ij / np.linalg.norm(d_vec_ij) / (np.linalg.norm(d_vec_ij) - nearest_obs.R - agent.R)
             if np.dot(d_vec_ij, esp_direction) < 0:
                 d_vec_ij = d_vec_ij - np.dot(d_vec_ij, esp_direction) / np.dot(esp_direction, esp_direction) * esp_direction
         else:
