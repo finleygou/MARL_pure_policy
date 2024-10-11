@@ -116,7 +116,7 @@ class Scenario(BaseScenario):
 
         for i, target in enumerate(world.targets):
             target.done = False
-            target.state.p_pos = np.array([0., 3.])
+            target.state.p_pos = np.array([0., 4.])
             target.state.p_vel = np.array([0.0, 0.0])
             target.size = 0.12
             target.R = target.size

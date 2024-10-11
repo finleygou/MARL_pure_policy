@@ -17,7 +17,7 @@ class Scenario(BaseScenario):
     
     def __init__(self) -> None:
         super().__init__()
-        self.d_cap = 0.8
+        self.d_cap = 1.0
         self.band_init = 0.25
         self.band_target = 0.1
         self.angle_band_init = 0.3
@@ -67,7 +67,7 @@ class Scenario(BaseScenario):
             ego.size = 0.12
             ego.R = ego.size
             ego.color = np.array([0.95, 0.45, 0.45])
-            ego.max_speed = 0.5
+            ego.max_speed = 0.8
             ego.max_accel = 0.5
             ego.global_id = global_id
             global_id += 1
@@ -116,7 +116,7 @@ class Scenario(BaseScenario):
 
         for i, target in enumerate(world.targets):
             target.done = False
-            target.state.p_pos = np.array([0., 3.])
+            target.state.p_pos = np.array([0., 4.])
             target.state.p_vel = np.array([0.0, 0.0])
             target.size = 0.12
             target.R = target.size
@@ -178,12 +178,96 @@ class Scenario(BaseScenario):
 
     # reward function
     def reward(self, agent, world):
-        '''
-        思路：主要是碰撞、队形奖励。如果是leader，到达目标点奖励，且目标点给予大家更大的队形奖励。
-        此处的奖励是针对每个agent的。
-        '''
-        rew = 1
-        return rew
+        if self.use_CL:
+            self.set_CL(glv.get_value('CL_ratio'), world)
+        
+        r_step = 0
+        target = world.targets[0]  # moving target
+        egos = world.egos
+        obstacles = world.obstacles
+        dynamic_obstacles = world.dynamic_obstacles
+        dist_i_vec = target.state.p_pos - agent.state.p_pos
+        dist_i = np.linalg.norm(dist_i_vec)  #与目标的距离
+        d_i = dist_i - self.d_cap  # 剩余围捕距离
+        d_list = [np.linalg.norm(ego.state.p_pos - target.state.p_pos) - self.d_cap for ego in egos]   # left d for all ego
+        [left_id, right_id], left_nb_angle, right_nb_angle = find_neighbors(agent, egos, target)  # nb:neighbor
+        # find min d between allies
+        d_min = 20
+        for ego in egos:
+            if ego == agent:
+                continue
+            d_ = np.linalg.norm(agent.state.p_pos - ego.state.p_pos)
+            if d_ < d_min:
+                d_min = d_
+
+        #################################
+        k1, k2, k3 = 0.2, 0.4, 2.0
+        # w1, w2, w3 = 0.35, 0.4, 0.25
+        w1, w2, w3 = 0.4, 0.6, 0.0
+
+        # formaion reward r_f
+        form_vec = np.array([0.0, 0.0])
+        for ego in egos:
+            dist_vec = ego.state.p_pos - target.state.p_pos
+            form_vec = form_vec + dist_vec
+        r_f = np.exp(-k1*np.linalg.norm(form_vec)) - 1
+        # distance coordination reward r_d
+        r_d = np.exp(-k2*np.sum(np.square(d_list))) - 1 
+
+        r_ca = 0
+        penalty = 1.0
+        for ego in egos:
+            if ego == agent: 
+                pass
+            d_ij = np.linalg.norm(ego.state.p_pos - agent.state.p_pos)
+            if d_ij < ego.R + agent.R:
+                r_ca += -1*penalty
+            elif d_ij < ego.R + agent.R + 0.25*agent.delta:
+                r_ca += (-0.5 - (ego.R + agent.R + 0.25*agent.delta - d_ij)*2)*penalty
+
+        for obs in obstacles:
+            d_ij = np.linalg.norm(agent.state.p_pos - obs.state.p_pos)
+            if d_ij < agent.R + obs.R:
+                r_ca += -1*penalty
+            elif d_ij < agent.R + obs.R + 0.25*obs.delta:
+                r_ca += (-0.5 - (agent.R + obs.R + 0.25*obs.delta - d_ij)*2)*penalty
+
+        for dobs in dynamic_obstacles:
+            d_ij = np.linalg.norm(agent.state.p_pos - dobs.state.p_pos)
+            if d_ij < agent.R + dobs.R:
+                r_ca += -1*penalty
+            elif d_ij < agent.R + dobs.R + 0.25*dobs.delta:
+                r_ca += (-0.5 - (agent.R + dobs.R + 0.25*dobs.delta - d_ij)*2)*penalty
+
+        r_step = w1*r_f + w2*r_d + r_ca
+
+        ####### calculate dones ########
+        dones = []
+        for ego in egos:
+            di_adv = np.linalg.norm(target.state.p_pos - ego.state.p_pos) 
+            di_adv_lft = di_adv - self.d_cap
+            _, left_nb_angle_, right_nb_angle_ = find_neighbors(ego, egos, target)
+            if di_adv_lft<self.d_lft_band and di_adv>self.dleft_lb and abs(left_nb_angle_ - self.exp_alpha)<self.delta_angle_band and abs(right_nb_angle_ - self.exp_alpha)<self.delta_angle_band: # 30°
+                dones.append(True)
+            else: dones.append(False)
+        # print(dones)
+        if all(dones)==True:  
+            agent.done = True
+            target.done = True
+            return 10+r_step
+        else:  agent.done = False
+
+        left_nb_done = True if (abs(left_nb_angle - self.exp_alpha)<self.delta_angle_band and abs(d_list[left_id])<self.d_lft_band) else False
+        right_nb_done = True if (abs(right_nb_angle - self.exp_alpha)<self.delta_angle_band and abs(d_list[right_id])<self.d_lft_band) else False
+
+        if abs(d_i)<self.d_lft_band and left_nb_done and right_nb_done: # 30°
+            return 5+r_step # 5    # terminate reward
+        elif abs(d_i)<self.d_lft_band and (left_nb_done or right_nb_done): # 30°
+            return 3+r_step
+        elif abs(d_i)<self.d_lft_band:
+            return 1+r_step
+        else:
+            return r_step
 
     # observation for policy agents
     def observation(self, agent, world):
@@ -228,7 +312,6 @@ class Scenario(BaseScenario):
 def dobs_policy(agent, obstacles):
     action = agent.action
     dt = 0.1
-    agent.t += dt
     if agent.t > 20:
         agent.done = True
     if agent.done:

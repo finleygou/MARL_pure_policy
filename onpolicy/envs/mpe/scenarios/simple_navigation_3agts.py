@@ -16,6 +16,9 @@ class Scenario(BaseScenario):
     
     def __init__(self) -> None:
         super().__init__()
+        self.band_init = 0.3
+        self.band_target = 0.1
+        self.d_lft_band = self.band_target
 
 
     def make_world(self,args):
@@ -40,7 +43,7 @@ class Scenario(BaseScenario):
         world = World()
         world.world_length = args.episode_length
         world.graph_mode = args.graph_mode
-        world.collaborative = True
+        world.collaborative = False
         world.cache_dists = True # cache the distances between all entities
         # set any world properties first
 
@@ -139,13 +142,42 @@ class Scenario(BaseScenario):
         dist_min = agent1.size + agent2.size
         return True if dist < dist_min else False
 
-    def set_CL(self, CL_ratio):
-        d_cap = 1.5
-        if CL_ratio < self.cp:
-            # print('in here Cd')
-            self.d_cap = d_cap*(self.cd + (1-self.cd)*CL_ratio/self.cp)
+    def set_CL(self, CL_ratio, world):
+        obstacles = world.obstacles
+        dynamic_obstacles = world.dynamic_obstacles
+        start_CL = 0.0
+        if start_CL < CL_ratio < self.cp:
+            # for i, obs in enumerate(obstacles):
+            #     obs.R = self.sizes_obs[i]*(CL_ratio-start_CL)/(self.cp-start_CL)
+            #     obs.delta = 0.1*(CL_ratio-start_CL)/(self.cp-start_CL)
+            # for i, d_obs in enumerate(dynamic_obstacles):
+            #     d_obs.R = d_obs.size*(CL_ratio-start_CL)/(self.cp-start_CL)
+            #     d_obs.delta = 0.1*(CL_ratio-start_CL)/(self.cp-start_CL)
+            for i, obs in enumerate(obstacles):
+                obs.R = self.sizes_obs[i]
+                obs.delta = 0.1
+            for i, d_obs in enumerate(dynamic_obstacles):
+                d_obs.R = d_obs.size
+                d_obs.delta = 0.1
+        elif CL_ratio >= self.cp:
+            for i, obs in enumerate(obstacles):
+                obs.R = self.sizes_obs[i]
+                obs.delta = 0.1
+            for i, d_obs in enumerate(dynamic_obstacles):
+                d_obs.R = d_obs.size
+                d_obs.delta = 0.1
         else:
-            self.d_cap = d_cap
+            for i, obs in enumerate(obstacles):
+                obs.R = 0.05
+                obs.delta = 0.05
+            for i, d_obs in enumerate(dynamic_obstacles):  
+                d_obs.R = 0.05
+                d_obs.delta = 0.05
+
+        if CL_ratio < self.cp:
+            self.d_lft_band = self.band_init - (self.band_init - self.band_target)*CL_ratio/self.cp
+        else:
+            self.d_lft_band = self.band_target
 
     # reward function
     def reward(self, agent, world):

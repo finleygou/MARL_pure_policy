@@ -235,6 +235,108 @@ class MPERunner(Runner):
         envs = self.envs
         
         all_frames = []
+        round = 0
+        round_num = self.all_args.render_episodes
+        calc_start = time.time()
+        while round <= round_num:
+            # print("round: ", round)
+            if self.all_args.save_gifs:
+                image = envs.render('rgb_array')[0][0]  # imshow
+                all_frames.append(image)
+            else:
+                envs.render('human')
+
+            rnn_states = np.zeros((self.n_rollout_threads, self.num_agents, self.recurrent_N, self.hidden_size), dtype=np.float32)
+            masks = np.ones((self.n_rollout_threads, self.num_agents, 1), dtype=np.float32)
+            
+            episode_rewards = []
+            
+            for step in range(self.episode_length):
+                if self.all_args.use_policy:
+                    calc_start = time.time()
+                
+                    actions_env = np.zeros((1, self.episode_length, 2))
+                    # Obser reward and next obs
+                    obs, rewards, dones, infos = envs.step(actions_env)
+                    episode_rewards.append(rewards)
+                    
+                    if infos[0][0]['round'] > round:
+                        round = infos[0][0]['round']
+                        break
+                    # if dones.all():
+                    #     break
+
+                    if self.all_args.save_gifs:
+                        image = envs.render('rgb_array')[0][0]
+                        all_frames.append(image)
+                        calc_end = time.time()
+                        elapsed = calc_end - calc_start
+                        if elapsed < self.all_args.ifi:
+                            time.sleep(self.all_args.ifi - elapsed)
+                    else:
+                        envs.render('human')
+                else:
+                    calc_start = time.time()
+
+                    self.trainer.prep_rollout()
+                    action, rnn_states = self.trainer.policy.act(np.concatenate(obs),
+                                                        np.concatenate(rnn_states),
+                                                        np.concatenate(masks),
+                                                        deterministic=True)
+                    actions = np.array(np.split(_t2n(action), self.n_rollout_threads))
+                    rnn_states = np.array(np.split(_t2n(rnn_states), self.n_rollout_threads))
+
+                    if envs.action_space[0].__class__.__name__ == 'MultiDiscrete':
+                        for i in range(envs.action_space[0].shape):
+                            uc_actions_env = np.eye(envs.action_space[0].high[i]+1)[actions[:, :, i]]
+                            if i == 0:
+                                actions_env = uc_actions_env
+                            else:
+                                actions_env = np.concatenate((actions_env, uc_actions_env), axis=2)
+                    elif envs.action_space[0].__class__.__name__ == 'Discrete':
+                        actions_env = np.squeeze(np.eye(envs.action_space[0].n)[actions], 2)
+                    elif self.envs.action_space[0].__class__.__name__ == 'Box':
+                        actions_env = actions
+                    else:
+                        raise NotImplementedError
+
+                    # Obser reward and next obs
+                    obs, rewards, dones, infos = envs.step(actions_env)
+                    episode_rewards.append(rewards)
+                    if infos[0][0]['round'] > round:
+                        round = infos[0][0]['round']
+                        break
+
+                    rnn_states[dones == True] = np.zeros(((dones == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
+                    masks = np.ones((self.n_rollout_threads, self.num_agents, 1), dtype=np.float32)
+                    masks[dones == True] = np.zeros(((dones == True).sum(), 1), dtype=np.float32)
+
+                    if self.all_args.save_gifs:
+                        if self.no_imageshow:
+                            envs.render('rgb_array')
+                        else:
+                            image = envs.render('rgb_array')[0][0]
+                            all_frames.append(image)
+                            calc_end = time.time()
+                            elapsed = calc_end - calc_start
+                            if elapsed < self.all_args.ifi:
+                                time.sleep(self.all_args.ifi - elapsed)
+                    else:
+                        envs.render('human')
+
+        # print("average episode rewards is: " + str(np.mean(np.sum(np.array(episode_rewards), axis=0))))
+
+        if self.all_args.save_gifs:
+            imageio.mimsave(str(self.gif_dir) + '/render.gif', all_frames, duration=self.all_args.ifi)
+
+
+'''
+    @torch.no_grad()
+    def render(self):
+        """Visualize the env."""
+        envs = self.envs
+        
+        all_frames = []
         for episode in range(self.all_args.render_episodes):
             # obs = envs.reset()
             if self.all_args.save_gifs:
@@ -294,7 +396,7 @@ class MPERunner(Runner):
                         raise NotImplementedError
 
                     # Obser reward and next obs
-                    obs, rewards, dones, infos, is_terminate = envs.step(actions_env)
+                    obs, rewards, dones, infos = envs.step(actions_env)
                     episode_rewards.append(rewards)
 
                     rnn_states[dones == True] = np.zeros(((dones == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
@@ -318,3 +420,4 @@ class MPERunner(Runner):
 
         if self.all_args.save_gifs:
             imageio.mimsave(str(self.gif_dir) + '/render.gif', all_frames, duration=self.all_args.ifi)
+'''

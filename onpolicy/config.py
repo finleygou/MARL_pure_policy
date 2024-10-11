@@ -289,6 +289,7 @@ def get_config():
     parser.add_argument("--use_render", default=True, action='store_true', help="by default, do not render the env during training. If set, start render. Note: something, the environment has internal render process which is not controlled by this hyperparam.")
     parser.add_argument("--render_episodes", type=int, default=50, help="the number of episodes to render a given env")
     parser.add_argument("--ifi", type=float, default=0.1, help="the play interval of each rendered image in saved video.")
+    parser.add_argument("--monte_carlo_test", default=False, help='if true, no image will be shown during render')
     parser.add_argument("--save_data", default=False, help='use to save data in rendering')
     parser.add_argument("--graph_mode", default=True, help='whether to use graph mode in rendering, that will draw edges')
 
@@ -296,15 +297,16 @@ def get_config():
     parser.add_argument("--model_dir", type=str, default=None, help="by default None. set the path to pretrained model.")
 
     # scenario settings
-    parser.add_argument("--max_edge_dist", type=float, default=1.5, help="Maximum distance above which edges cannot be connected between the entities")
-    parser.add_argument("--num_target", type=int, default=0, help="the number of targets")
+    parser.add_argument("--max_edge_dist", type=float, default=1.5
+                        , help="Maximum distance above which edges cannot be connected between the entities")
+    parser.add_argument("--num_target", type=int, default=1, help="the number of targets")
     parser.add_argument("--num_obstacle", type=int, default=4, help="the number of obstacles")
     parser.add_argument("--num_dynamic_obs", type=int, default=4, help="the number of dynamic obstacles")
-    parser.add_argument("--num_agents", type=int, default=3, help="the number of agents")
+    parser.add_argument("--num_agents", type=int, default=6, help="the number of agents")
     parser.add_argument('--scenario_name', type=str,
-                        default='simple_navigation_3agts', help="Which scenario to run on")
+                        default='simple_formation_6agts', help="Which scenario to run on")
     parser.add_argument("--gp_type", type=str,
-                        default='navigation', choices=["formation", "encirclement", "navigation"
+                        default='formation', choices=["formation", "encirclement", "navigation"
                                                        "formation_rvo", "encirclement_rvo", "navigation_rvo"], 
                                                        help="the choose of guide policy")
     return parser

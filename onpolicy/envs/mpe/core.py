@@ -103,6 +103,7 @@ class Agent(Entity):
         self.network_action = np.array([0,0])
         # time passed for each agent
         self.t = 0.0
+        self.delta = 0.1
 
 class Target(Agent):
     def __init__(self):
