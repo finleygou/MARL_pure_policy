@@ -1,4 +1,3 @@
-# TAD
 windows config:
 MPE_ENV
 environment
