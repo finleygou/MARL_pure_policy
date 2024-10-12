@@ -112,6 +112,7 @@ class Scenario(BaseScenario):
             d_obs.state.p_vel = d_obs.direction*d_obs.max_speed/np.linalg.norm(d_obs.direction)
             d_obs.action_callback = dobs_policy
 
+
         init_pos_obs = np.array([[-1.5, 1.5], [-0.8, 3.8], [0.4, 2.6], [1.8, 0.9]])
         sizes_obs = np.array([0.15, 0.2, 0.19, 0.18])
         for i, obs in enumerate(world.obstacles):
@@ -280,7 +281,7 @@ class Scenario(BaseScenario):
         world.edge_list = edge_list
         world.edge_weight = dists[row, col]   
 
-def dobs_policy(agent, obstacles):
+def dobs_policy(agent, obstacles, dobs):
     action = agent.action
     dt = 0.1
     if agent.t > 20:

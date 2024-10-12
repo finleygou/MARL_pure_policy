@@ -302,11 +302,11 @@ def get_config():
     parser.add_argument("--num_target", type=int, default=1, help="the number of targets")
     parser.add_argument("--num_obstacle", type=int, default=4, help="the number of obstacles")
     parser.add_argument("--num_dynamic_obs", type=int, default=4, help="the number of dynamic obstacles")
-    parser.add_argument("--num_agents", type=int, default=6, help="the number of agents")
+    parser.add_argument("--num_agents", type=int, default=5, help="the number of agents")
     parser.add_argument('--scenario_name', type=str,
-                        default='simple_formation_6agts', help="Which scenario to run on")
+                        default='simple_encirclement_5agts', help="Which scenario to run on")
     parser.add_argument("--gp_type", type=str,
-                        default='formation', choices=["formation", "encirclement", "navigation"
+                        default='encirclement', choices=["formation", "encirclement", "navigation"
                                                        "formation_rvo", "encirclement_rvo", "navigation_rvo"], 
                                                        help="the choose of guide policy")
     return parser

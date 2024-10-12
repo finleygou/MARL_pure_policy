@@ -246,7 +246,7 @@ class World(object):
                 agent.action = action
                 # print("agent {} action is {}".format(agent.id, action))
             elif agent.name == 'dynamic_obstacle':
-                action = agent.action_callback(agent, self.obstacles)
+                action = agent.action_callback(agent, self.obstacles, self.dynamic_obstacles)
                 agent.action = action
                 # print("agent {} action is {}".format(agent.id, action))
             

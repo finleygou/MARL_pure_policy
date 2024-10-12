@@ -105,7 +105,7 @@ class Scenario(BaseScenario):
 
     def reset_world(self, world):
         init_pos_ego = np.array([[-1.2, 0.], [-0.6, 0.0], [0.0, 0.0], [0.6, 0.0], [1.2, 0.0]])
-        init_pos_ego = init_pos_ego + np.random.randn(*init_pos_ego.shape)*0.05
+        init_pos_ego = init_pos_ego + np.random.randn(*init_pos_ego.shape)*0.01
         for i, ego in enumerate(world.egos):
             ego.done = False
             ego.state.p_pos = init_pos_ego[i]
@@ -133,8 +133,8 @@ class Scenario(BaseScenario):
             d_obs.state.p_vel = d_obs.direction*d_obs.max_speed/np.linalg.norm(d_obs.direction)
             d_obs.action_callback = dobs_policy
 
-        init_pos_obs = np.array([[-1.3, 1.7], [-0.2, 0.7], [0.9, 1.3], [0.4, 2.7]])
-        sizes_obs = np.array([0.15, 0.18, 0.2, 0.22])
+        init_pos_obs = np.array([[-1.3, 1.7], [-0.2, 0.7], [1.1, 1.3], [0.4, 2.7]])
+        sizes_obs = np.array([0.15, 0.17, 0.19, 0.22])
         for i, obs in enumerate(world.obstacles):
             obs.done = False
             obs.state.p_pos = init_pos_obs[i]
@@ -225,7 +225,7 @@ class Scenario(BaseScenario):
         world.edge_list = edge_list
         world.edge_weight = dists[row, col]   
 
-def dobs_policy(agent, obstacles):
+def dobs_policy(agent, obstacles, dobs):
     action = agent.action
     dt = 0.1
     if agent.t > 20:
@@ -255,10 +255,23 @@ def dobs_policy(agent, obstacles):
             d_vec_ij = agent.state.p_pos - nearest_obs.state.p_pos
             d_vec_ij = 0.5 * d_vec_ij / np.linalg.norm(d_vec_ij) / (np.linalg.norm(d_vec_ij) - nearest_obs.R - agent.R)
             if np.dot(d_vec_ij, esp_direction) < 0:
-                d_vec_ij = d_vec_ij - np.dot(d_vec_ij, esp_direction) / np.dot(esp_direction, esp_direction) * esp_direction
+                d_vec_ij = d_vec_ij - np.dot(d_vec_ij, esp_direction) / np.dot(esp_direction, esp_direction) * esp_direction *0.8
         else:
             d_vec_ij = np.array([0, 0])
         esp_direction = esp_direction + d_vec_ij
+
+        # with dynamic obstacles
+        for dob in dobs:
+            if dob == agent:
+                continue
+            else:
+                dist = np.linalg.norm(agent.state.p_pos - dob.state.p_pos)
+                if dist - agent.R - dob.R < 0.5:
+                    d_vec_ij = agent.state.p_pos - dob.state.p_pos
+                    d_vec_ij = 0.5 * d_vec_ij / np.linalg.norm(d_vec_ij) / (np.linalg.norm(d_vec_ij) - dob.R - agent.R)
+                    if np.dot(d_vec_ij, esp_direction) < 0:
+                        d_vec_ij = d_vec_ij - np.dot(d_vec_ij, esp_direction) / np.dot(esp_direction, esp_direction) * esp_direction
+                    esp_direction = esp_direction + d_vec_ij
 
         esp_direction = esp_direction/np.linalg.norm(esp_direction)
         a_x, a_y = esp_direction[0]*agent.max_accel, esp_direction[1]*agent.max_accel

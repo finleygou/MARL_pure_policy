@@ -105,7 +105,7 @@ class Scenario(BaseScenario):
 
     def reset_world(self, world):
         init_pos_ego = np.array([[-0.8, 0.], [0.0, 0.0], [0.8, 0.0]])
-        init_pos_ego = init_pos_ego + np.random.randn(*init_pos_ego.shape)*0.05
+        init_pos_ego = init_pos_ego + np.random.randn(*init_pos_ego.shape)*0.01
         for i, ego in enumerate(world.egos):
             ego.done = False
             ego.state.p_pos = init_pos_ego[i]
@@ -309,7 +309,7 @@ class Scenario(BaseScenario):
         world.edge_list = edge_list
         world.edge_weight = dists[row, col]   
 
-def dobs_policy(agent, obstacles):
+def dobs_policy(agent, obstacles, dobs):
     action = agent.action
     dt = 0.1
     if agent.t > 20:
